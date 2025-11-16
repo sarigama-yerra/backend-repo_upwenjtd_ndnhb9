@@ -1,48 +1,86 @@
 """
-Database Schemas
+Database Schemas for Spark (Bumble-like) Dating App
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model below represents a MongoDB collection. The collection
+name is the lowercase of the class name.
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Key collections:
+- Useraccount: credentials + basic identity
+- Session: auth sessions (simple bearer tokens)
+- Profile: rich dating profile and discovery preferences
+- Like: swipe actions (like, dislike, superlike)
+- Match: mutual likes result in a match
+- Message: chat messages between matched users
+- Report: safety reports
+- Block: block relations
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional, Literal
+from datetime import datetime
 
-# Example schemas (replace with your own):
+# Auth & Accounts
+class Useraccount(BaseModel):
+    email: EmailStr
+    password_hash: str
+    password_salt: str
+    name: str
+    created_at: Optional[datetime] = None
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class Session(BaseModel):
+    user_id: str
+    token: str
+    user_agent: Optional[str] = None
+    ip: Optional[str] = None
+    expires_at: Optional[datetime] = None
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+# Profile & Discovery
+class Profile(BaseModel):
+    user_id: str
+    display_name: str
+    birthdate: Optional[str] = None
+    gender: Optional[Literal["woman","man","non-binary","other"]] = None
+    looking_for: Optional[List[Literal["women","men","everyone"]]] = None
+    bio: Optional[str] = None
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    education: Optional[str] = None
+    interests: Optional[List[str]] = None
+    photos: Optional[List[str]] = None  # URLs for MVP
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
 
-# Add your own schemas here:
-# --------------------------------------------------
+    # Discovery preferences
+    pref_min_age: Optional[int] = 18
+    pref_max_age: Optional[int] = 99
+    pref_max_distance_km: Optional[int] = 50
+    pref_show: Optional[Literal["women","men","everyone"]] = "everyone"
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+# Swipes
+class Like(BaseModel):
+    user_id: str  # actor
+    target_user_id: str
+    action: Literal["like","dislike","superlike"]
+
+# Matches
+class Match(BaseModel):
+    user_ids: List[str]  # [user_a, user_b]
+    last_message_at: Optional[datetime] = None
+
+# Messages
+class Message(BaseModel):
+    match_id: str
+    sender_id: str
+    content: str
+    sent_at: Optional[datetime] = None
+
+# Safety
+class Report(BaseModel):
+    reporter_id: str
+    reported_user_id: str
+    reason: str
+    details: Optional[str] = None
+
+class Block(BaseModel):
+    blocker_id: str
+    blocked_user_id: str
